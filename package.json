@@ -1,7 +1,7 @@
 {
   "name": "dsh-workflow-boost",
-  "version": "1.1.0",
-  "description": "Fuse the workflow mechanics other coding agents do better into DeepSeek Harness: microcompact, focus chain, stuck-loop detection, turn guard, edit checks, file checkpoints, evidence-gated goals, repo map, cache/cost attribution, memory lint, lifecycle hooks, handoff notes, built-in skills, deterministic review gate.",
+  "version": "1.2.0",
+  "description": "Fuse the workflow mechanics other coding agents do better into DeepSeek Harness: microcompact, focus chain, stuck-loop detection, turn guard, edit checks, file checkpoints, evidence-gated goals, repo map, cache/cost attribution, memory lint, lifecycle hooks, handoff notes, built-in skills, deterministic review gate, response style and self-presentation presets.",
   "type": "module",
   "license": "MIT",
   "author": "RiverSlumber (https://github.com/SlumberMin)",

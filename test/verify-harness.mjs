@@ -69,8 +69,9 @@ const modules = await Promise.all([
   import('../lib/handoff-notes.js'),
   import('../lib/skill-pack.js'),
   import('../lib/review-gate.js'),
+  import('../lib/style-pack.js'),
 ])
-const [microcompact, focusChain, duplicateGuard, turnGuard, editCheck, checkpoint, goalGate, repoMap, cacheReport, memoryLint, hookBus, handoffNotes, skillPack, reviewGate] = modules
+const [microcompact, focusChain, duplicateGuard, turnGuard, editCheck, checkpoint, goalGate, repoMap, cacheReport, memoryLint, hookBus, handoffNotes, skillPack, reviewGate, stylePack] = modules
 
 const configs = {
   microcompact: { microcompact: { enabled: true } },
@@ -87,6 +88,7 @@ const configs = {
   handoffNotes: { handoffNotes: { enabled: true } },
   skillPack: { skillPack: { enabled: true } },
   reviewGate: { reviewGate: { enabled: true } },
+  stylePack: { stylePack: { enabled: true, style: 'concise', identity: 'off', persist: false } },
 }
 
 const entries = [
@@ -104,6 +106,7 @@ const entries = [
   ['handoffNotes', handoffNotes],
   ['skillPack', skillPack],
   ['reviewGate', reviewGate],
+  ['stylePack', stylePack],
 ]
 
 const registrationsOf = (fake) => {
@@ -268,6 +271,21 @@ await check('repo map enforces workspace containment', async () => {
   assertEqual(repoCore.isPathInside('/ws', '/etc/passwd'), false)
   const denied = repoCore.classifyWorkspacePath({ root: '/ws', target: '/etc/passwd' })
   assert(denied === null || denied === undefined || denied.ok === false, 'system paths must be rejected')
+})
+
+await check('stylePack renders a checkable static section and no section at all by default', async () => {
+  const core = await import('../lib/pure/style-core.js')
+  const resolved = core.resolveStyleConfig({ style: 'concise', identity: 'off' })
+  const text = core.renderStyleSection(resolved)
+  assert(text.includes('## Response style'), 'style rules must render under a heading')
+  assert(text.includes('First sentence states the answer'), 'the first rule must be the answer-first rule')
+  const empty = core.renderStyleSection(core.resolveStyleConfig({ style: 'default', identity: 'off' }))
+  assertEqual(empty, '', 'default style and off identity must add nothing')
+  const identity = core.renderStyleSection(core.resolveStyleConfig({ style: 'default', identity: 'claude-opus-5.5' }))
+  assert(identity.includes('Claude Opus 5.5'), 'identity line must render')
+  assert(identity.includes('self-presentation only'), 'identity must stay a presentation, not a capability claim')
+  assertEqual(core.identityIsActive('off'), false)
+  assertEqual(core.identityIsActive('kimi-k3'), true)
 })
 
 console.error('verify-harness: ' + passed + ' assertions passed, ' + failures.length + ' failed')

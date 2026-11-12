@@ -3,6 +3,24 @@
 All notable changes to **dsh-workflow-boost** are documented here.
 The format loosely follows Keep a Changelog; versions use SemVer.
 
+## [1.2.0] - 2026-11-12
+
+### Added
+- `stylePack`: six response styles (default / concise / proactive / explanatory / learning / custom) and a dated identity catalog, rendered as ONE static system-prompt section; `/boost-style`, `/boost-identity`, `/boost-show`, `/boost-reset` commands plus the read-only `boost_settings` tool.
+- Live settings-page editing: the `stylePack` config section is declared volatile, so edits apply without remounting the plugin. Optional persistence to `<workspace>/.dsh/workflow-boost/style.json`.
+- `test/verify-config.mjs`: an optional repository-level gate that loads `lib/config.js` against the host's real `@deepseek-ai/schemastery`, instead of the fake `z` used by the clean-environment unit suite. Verified against both 3.19.0 and 3.18.2.
+
+### Fixed
+- **P0 (plugin could not load on a real host)**: `lib/config.js` used zod-only methods — `.optional()` on two fields (present since 1.0.0) and `.describe()` on three fields. Neither exists in schemastery 3.18.2 or 3.19.0, so constructing `Config` threw immediately. Optional fields now simply omit `.default()`; descriptions use `.description()`.
+- **P1 (every tool call could break)**: `tools/post-execute` is a waterfall whose listener signature is `(exec, result, next)` (`packages/core/tools/src/events.ts:41`). stylePack used two parameters, so `next` received the tool result object and `await next()` threw. Now three parameters, and the test drives the real three-argument chain.
+- Command registration now follows the real DSH contract: `handler({ agent, rawInput }) -> { kind: 'success' | 'error', text }`.
+- `PLUGIN_VERSION` in `lib/defaults.js` was left at `1.0.0` during the 1.1.0 release, so the ready log and `VERSION` export lied; they now report 1.2.0.
+- `.volatile()` is guarded: hosts on schemastery < 3.19 still load the plugin (without live settings editing) instead of throwing.
+- README: repaired a truncated config YAML block, removed a duplicated 1.0.0 chapter, and documented the stylePack source cutoff and identity boundaries.
+
+### Changed
+- Unit suite 251 → 273 assertions; wiring harness 58 → 62; checked sources 55 → 58; stylePack case 22/22. Module count 14 → 15.
+
 ## [1.1.0] - 2026-11-12
 
 ### Added

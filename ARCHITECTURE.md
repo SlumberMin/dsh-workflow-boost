@@ -1,18 +1,19 @@
-# dsh-workflow-boost 1.0.0 实现契约（所有实现者必读）
+# dsh-workflow-boost 1.2.0 实现契约（所有实现者必读）
 
 本文件是并行实现的接口契约。只改你名下文件；接口/配置/测试脚手架由 Lead 维护，需要变更先发消息。
 
 ## 0. 目标与来源
 
 - 规格：工作区根目录 `dsh-workflow-boost-0.2.0-优化提示词.md`（0.1.1 修复 + P0/P1 规格）。
-- 本版本号 1.0.0；宿主 DSH 0.2.2-rc.1（源码级验证，本机没有隔离 profile 跑真实会话）。
+- 本版本号 1.2.0；宿主 DSH 0.2.2-rc.1（源码级验证，本机没有隔离 profile 跑真实会话）。
 - 设计红线：静态系统提示词段、历史尾部追加、最旧处替换、阈值触发、fail-open、不重复原生能力。
+- 1.2.0 附加红线：身份预设只收录 2026-06 之后发布的模型；身份行是自我呈现，不得用于向终端用户误导产品身份。
 
 ## 1. 文件归属（只改你名下文件）
 
 | 归属 | 文件 |
 |---|---|
-| Lead | `index.js`、`lib/config.js`、`lib/defaults.js`、`lib/shared.js`、`lib/session-state.js`、`test/harness.mjs`、`test/unit.mjs`、`test/run-case.mjs`、`test/check.mjs`、`test/verify-harness.mjs`、README/INSTALL、打包 |
+| Lead | `index.js`、`lib/config.js`、`lib/defaults.js`、`lib/shared.js`、`lib/session-state.js`、`test/harness.mjs`、`test/unit.mjs`、`test/run-case.mjs`、`test/check.mjs`、`test/verify-harness.mjs`、README/INSTALL、打包、`test/verify-config.mjs` |
 | impl-microcompact | `lib/microcompact.js`、`lib/focus-chain.js`、`lib/pure/microcompact-plan.js`、`lib/pure/focus-render.js`、`test/cases/microcompact.mjs`、`test/cases/focus-chain.mjs` |
 | impl-loop | `lib/turn-guard.js`、`lib/duplicate-guard.js`、`lib/pure/turn-guard-core.js`、`lib/pure/stuck-core.js`、`test/cases/turn-guard.mjs`、`test/cases/duplicate-guard.mjs` |
 | impl-quality | `lib/edit-check.js`、`lib/checkpoint.js`、`lib/pure/edit-check-core.js`、`lib/pure/checkpoint-core.js`、`test/cases/edit-check.mjs`、`test/cases/checkpoint.mjs` |
@@ -22,6 +23,7 @@
 | impl-loop (1.1.0) | `lib/hook-bus.js`、`lib/pure/hook-core.js`、`test/cases/hook-bus.mjs` |
 | impl-microcompact (1.1.0) | `lib/handoff-notes.js`、`lib/pure/handoff-core.js`、`test/cases/handoff-notes.mjs` |
 | impl-goal-cache (1.1.0) | `lib/review-gate.js`、`lib/pure/review-core.js`、`test/cases/review-gate.mjs`、`lib/goal-gate.js`（requireReview） |
+| impl-style (1.2.0) | `lib/style-pack.js`、`lib/pure/style-core.js`、`test/cases/style-pack.mjs`、`lib/config.js`（volatile 段）、`lib/defaults.js`（section 默认值） |
 
 ## 2. 模块契约
 
@@ -38,11 +40,11 @@ export function install(ctx, config, state) {
 - `state.sessionState.stateOf(session)` 返回折叠状态：`{ compactionOpen, todos, toolRing, toolCount, errorCount, monologue, turn, step, mutatedInTurn, lastMutationSeq, lastCompactionStartSeq, lastPruneSeq, lastSummarySeq, lastModelSelectionSeq, lastEndSeedSeq }`（详见 lib/session-state.js）。
 - `state.sessionState.onEvent((session, event, nextState) => {})` 观察每个已提交会话事件。
 - 所有回调/异步代码包 try/catch，失败只 `state.log('warn', ...)`，绝不 throw 到宿主。
-- 宿主能力一律用 `loadHost('@deepseek-ai/...')` 动态 import（lib/shared.js）；禁止静态 import `/*（否则干净环境单测直接失败）。唯一例外是 `lib/config.js`（Lead 维护，仅 index 使用）。
+- 宿主能力一律用 `loadHost('@deepseek-ai/...')` 动态 import（lib/shared.js）；禁止静态 import `@deepseek-ai/*`（否则干净环境单测直接失败）。唯一例外是 `lib/config.js`（Lead 维护，仅 index 使用）。
 
 ## 3. 纯函数要求（重要）
 
-- 决策/渲染/状态机等纯逻辑放 `lib/pure/<name>-core.js`，不得 import 任何 `/* 包；可用 node 内置模块，但优先纯字符串。
+- 决策/渲染/状态机等纯逻辑放 `lib/pure/<name>-core.js`，不得 import 任何 `@deepseek-ai/*` 包；可用 node 内置模块，但优先纯字符串。
 - 单元测试只 import 纯模块 + `lib/shared.js` + `lib/defaults.js` + `lib/session-state.js`，这些文件必须在干净环境可加载。
 - 纯函数要能在无 Cordis、无 DOM、无宿主的 Node 里直接调用。
 
@@ -50,23 +52,29 @@ export function install(ctx, config, state) {
 
 事件（`ctx.on(name, listener)`）：
 
-- `agent/pre-step`（waterfall，payload 含 agent/turn/step/messages）：必须 `next()`；可拒绝或替换本步消息。
+- `agent/pre-step`（waterfall，payload 含 agent/turn/step/messages）：签名 `(payload, next)`，必须 `next()`；可拒绝或替换本步消息。
 - `agent/turn-stopping`（serial，payload 含 agent/turn/signal）：可 `agent.steer({ content: [...], source: { kind, form: 'notice' } })` 保持轮次打开。
-- `tools/pre-execute`（waterfall，exec 含 name/arguments/agent）：返回 `{ kind: 'deny', reason }` 或 `{ kind: 'ask', reason }` 或 `next()`；不能改写参数。
-- `tools/post-execute`（waterfall，exec/result）：返回 `{ kind: 'accept', additionalContexts: [...] }` 或 `{ kind: 'block', feedback }`。
+- `tools/pre-execute`（waterfall，exec 含 name/arguments/agent）：签名 `(exec, next)`；返回 `{ kind: 'deny', reason }` 或 `{ kind: 'ask', reason }` 或 `next()`；不能改写参数。
+- `tools/post-execute`（waterfall）：签名是**三个参数** `(exec, result, next)`，返回 `PostToolDecision` = `{ kind: 'accept', additionalContexts?: UserMessage[] }` 或 `{ kind: 'block', feedback }`。依据 `packages/core/tools/src/events.ts:41`。写成两参会让 `next` 收到 result 对象，`await next()` 直接抛错并打断每次工具调用。
 - `tools/result`（emit，只观察）、`session/event`（emit，(session, event)）、`agent/request-error`（waterfall）、`fs/write-intent|fs/edit-intent|fs/delete-intent`（waterfall，是否生效未实测，必须 capability 探测 + fail-open）、`goal/changed`（emit）。
+- `loader/volatile-update`（emit，paths）： volatile 配置写入运行中的 fiber 后通知；消费者应重新读 `.get()` 并刷新注册事实。依据 `vendor/loader/src/index.ts:34` 与 `docs/cookbook/adding-a-settings-card.zh.md`。
 
-服务（`ctx.get(name)`，全部可能缺失）：`tools`、`systemPrompt`、`tokenMeter`、`sessionProjections`、`workingDirectory`、`goals`、`subagents`、`skills`、`commands`、`compaction`、`fs`。
+命令（`ctx.commands.register({ name, description, input: { hint }, handler })`）：`handler({ agent, rawInput })` 返回 `{ kind: 'success' | 'error', text }`；命令不产生模型消息，需模型可见时用尾部 `additionalContexts` notice。
 
-禁止：`session.eventAt()/snapshotEvents()/ownEvents()`（官方 deprecated）；`process.cwd()` 兜底（用 ctx.get('workingDirectory').get(session)）；每步改系统提示词或工具集。
+服务（`ctx.get(name)`，全部可能缺失）：`tools`、`systemPrompt`、`tokenMeter`、`sessionProjections`、`workingDirectory`、`goals`、`subagents`、`skills`、`commands`、`compaction`、`fs`。`workingDirectory.get(session)` 取工作区绝对路径，禁止 `process.cwd()` 兜底。
+
+配置 schema：`@deepseek-ai/schemastery` **不是 zod**。可用方法包括 `.default()`、`.description()`、`.min()/.max()`、`.required()`、`.volatile()`（>= 3.19）；**没有** `.optional()`、`.describe()`。无 `.default()` 的字段本身就是可选。`.volatile()` 让设置页渲染该子树并给出稳定引用（读值用 `.get()`），低版本宿主需降级守卫。
+
+禁止：`session.eventAt()/snapshotEvents()/ownEvents()`（官方 deprecated）；每步改系统提示词或工具集。
 
 ## 5. 测试契约
 
 - 每个 owner 写自己的 `test/cases/<name>.mjs`：`import { test, assert, assertEqual } from '../harness.mjs'`，覆盖验收要点，至少 4 个用例。
 - 单跑：`node test/run-case.mjs test/cases/<name>.mjs`
-- 全量：`node test/unit.mjs`（占位文件已建，所有人完成后才会全绿）
+- 全量：`node test/unit.mjs`
 - 语法：`node test/check.mjs`
-- 测试不得依赖 @deepseek-ai/*。
+- 测试不得依赖 `@deepseek-ai/*`。
+- **真实宿主兼容性**：干净环境单测用 fake `z`，无法发现 schema API 错误。发布前在包根目录跑 `node test/verify-config.mjs`（需本机装有宿主 schemastery，或设 `DSH_SCHEMASTERY`），它会用真实包加载 `lib/config.js` 并校验 volatile 表单投影。
 
 ## 6. 完成标准
 

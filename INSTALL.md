@@ -1,4 +1,4 @@
-# 安装 dsh-workflow-boost 1.0.0
+# 安装 dsh-workflow-boost 1.2.0
 
 本插件是纯宿主插件：没有客户端代码，只需放进 profile 并在 `cordis.patch.yml` 里 insert 一行。
 
@@ -58,7 +58,7 @@ node test/unit.mjs
 node test/verify-harness.mjs
 ```
 
-启动后插件日志会打印 `dsh-workflow-boost: ready v1.0.0 modules=...`；日志里出现 `module <id> disabled` 表示该模块被配置关闭或无法挂载。
+启动后插件日志会打印 `dsh-workflow-boost: ready v1.2.0 modules=...`；日志里出现 `module <id> disabled` 表示该模块被配置关闭或无法挂载。
 
 ## 回滚
 

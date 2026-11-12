@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-boost 1.0.0 — one plugin that fuses the workflow mechanics other
+ * dsh-workflow-boost 1.2.0 — one plugin that fuses the workflow mechanics other
  * coding agents do better into DeepSeek Harness, without breaking its KV-cache
  * discipline.
  *
@@ -18,6 +18,7 @@
  *   handoffNotes    — structured notes before compaction, injected afterwards (Anthropic context engineering)
  *   skillPack       — register the plugin built-in skills through the native skills service
  *   reviewGate      — deterministic pre-completion diff review (secrets/conflicts/debug prints/large deletions)
+ *   stylePack       — response styles + self-presentation, static prompt section plus /boost-* commands and persistence
  */
 import { Config } from './lib/config.js'
 import { PLUGIN_VERSION } from './lib/defaults.js'
@@ -36,6 +37,7 @@ import { install as installHookBus } from './lib/hook-bus.js'
 import { install as installHandoffNotes } from './lib/handoff-notes.js'
 import { install as installSkillPack } from './lib/skill-pack.js'
 import { install as installReviewGate } from './lib/review-gate.js'
+import { install as installStylePack } from './lib/style-pack.js'
 
 export const name = 'dsh-workflow-boost'
 export { Config }
@@ -59,6 +61,7 @@ const MODULES = [
   ['handoffNotes', installHandoffNotes],
   ['skillPack', installSkillPack],
   ['reviewGate', installReviewGate],
+  ['stylePack', installStylePack],
 ]
 
 export const VERSION = PLUGIN_VERSION
