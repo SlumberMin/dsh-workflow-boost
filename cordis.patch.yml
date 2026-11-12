@@ -1,0 +1,5 @@
+# dsh-workflow-boost — one host row. Every behaviour is a module that can be
+# disabled from the row config (see README); the row itself only wires the plugin.
+- insert:
+    - id: workflow-boost
+      name: dsh-workflow-boost

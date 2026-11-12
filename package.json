@@ -1,0 +1,63 @@
+{
+  "name": "dsh-workflow-boost",
+  "version": "1.1.0",
+  "description": "Fuse the workflow mechanics other coding agents do better into DeepSeek Harness: microcompact, focus chain, stuck-loop detection, turn guard, edit checks, file checkpoints, evidence-gated goals, repo map, cache/cost attribution, memory lint, lifecycle hooks, handoff notes, built-in skills, deterministic review gate.",
+  "type": "module",
+  "license": "MIT",
+  "author": "RiverSlumber (https://github.com/SlumberMin)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SlumberMin/dsh-workflow-boost.git"
+  },
+  "homepage": "https://github.com/SlumberMin/dsh-workflow-boost#readme",
+  "bugs": {
+    "url": "https://github.com/SlumberMin/dsh-workflow-boost/issues"
+  },
+  "engines": {
+    "dsh": ">=0.2.1-rc.3 <0.3.0-0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "test/",
+    "cordis.patch.yml",
+    "README.md",
+    "INSTALL.md",
+    "ARCHITECTURE.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "deepseek-harness",
+    "agent",
+    "workflow",
+    "compaction",
+    "checkpoint",
+    "prompt-caching",
+    "context-engineering",
+    "agent-harness"
+  ],
+  "scripts": {
+    "test": "node test/unit.mjs",
+    "verify": "node test/verify-harness.mjs",
+    "check": "node test/check.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "verifiedAgainst": "0.2.2-rc.1",
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
