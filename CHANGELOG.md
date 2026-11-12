@@ -19,7 +19,7 @@ The format loosely follows Keep a Changelog; versions use SemVer.
 - README: repaired a truncated config YAML block, removed a duplicated 1.0.0 chapter, and documented the stylePack source cutoff and identity boundaries.
 
 ### Changed
-- Unit suite 251 → 273 assertions; wiring harness 58 → 62; checked sources 55 → 58; stylePack case 22/22. Module count 14 → 15.
+- Unit suite 251 → 273 assertions; wiring harness 58 → 62; checked sources 55 → 59; stylePack case 22/22. Module count 14 → 15; package 61 → 70 files.
 
 ## [1.1.0] - 2026-11-12
 
