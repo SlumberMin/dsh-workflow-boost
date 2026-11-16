@@ -1,6 +1,6 @@
 {
   "name": "dsh-workflow-boost",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Fuse the workflow mechanics other coding agents do better into DeepSeek Harness: microcompact, focus chain, stuck-loop detection, turn guard, edit checks, file checkpoints, evidence-gated goals, repo map, cache/cost attribution, memory lint, lifecycle hooks, handoff notes, built-in skills, deterministic review gate, response style and self-presentation presets.",
   "type": "module",
   "license": "MIT",
@@ -19,7 +19,8 @@
   "exports": {
     ".": "./index.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": "./client.js"
   },
   "files": [
     "index.js",
@@ -30,7 +31,8 @@
     "INSTALL.md",
     "ARCHITECTURE.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "client.js"
   ],
   "keywords": [
     "dsh",
@@ -58,6 +60,14 @@
     "verifiedAgainst": "0.2.2-rc.1",
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   }
 }

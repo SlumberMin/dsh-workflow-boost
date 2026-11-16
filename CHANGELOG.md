@@ -3,6 +3,17 @@
 All notable changes to **dsh-workflow-boost** are documented here.
 The format loosely follows Keep a Changelog; versions use SemVer.
 
+## [1.3.1] - 2026-11-17
+
+### Fixed
+- **Settings page stayed empty on 1.3.0.** The Host settings service projects `.volatile()` fields, but the shipped DSH Web client renders only pages registered by a client companion — it does not auto-render third-party plugin config forms. 1.3.0 shipped the Host half only, so there was no slot to render into.
+- Added `client.js` (browser half) plus `dsh.client` and `exports["./client"]` in `package.json`:
+  - `settings.section` (order 15): a **Workflow Boost** page in the Settings dialog navigation;
+  - `plugins.row.config`: the configuration card on the Plugins page, matching the official plugin pattern.
+- The page edits the live row through `ctx.configForms.get('workflow-boost')` and atomic `form.mutate(...)` writes with revision checks, then `loader/volatile-update` makes every module see the new values without a restart. Controls: master switch, response style, self-presentation, custom rules, per-module switches, system-prompt injection and persistence.
+- `test/cases/client-settings.mjs`: 5 cases evaluating `client.js` in a VM with a fake ModuleLoader (module id, injected services, row id, both slot registrations, manifest contract).
+- Unit suite 280 -> 285; checked sources 64 files; wiring harness 62 assertions.
+
 ## [1.3.0] - 2026-11-16
 
 ### Added

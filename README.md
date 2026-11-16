@@ -5,7 +5,7 @@
 > 把 ZCode / Cline / OpenCode / Aider / Claude Code / OpenHands / SWE-agent 在**工作方式**上真正赢过 DeepSeek Harness 的机制，
 > 做成一个可安装、可开关、不破坏 DSH KV 缓存纪律的插件。
 
-版本：**1.3.0** · 适配 DSH 0.2.x（源码基线 0.2.2-rc.1）· 纯宿主插件（无客户端代码）
+版本：**1.3.1** · 适配 DSH 0.2.x（源码基线 0.2.2-rc.1）· 宿主插件 + 轻量 Web 客户端（设置页）
 
 ---
 
@@ -48,7 +48,7 @@
 插件已发布到 GitHub（`SlumberMin/dsh-workflow-boost`），Release 上带可直装的 tgz：
 
 ```powershell
-dsh plugin --profile <profile> add https://github.com/SlumberMin/dsh-workflow-boost/releases/download/v1.3.0/dsh-workflow-boost-1.3.0.tgz
+dsh plugin --profile <profile> add https://github.com/SlumberMin/dsh-workflow-boost/releases/download/v1.3.1/dsh-workflow-boost-1.3.1.tgz
 ```
 
 也可以直接从 Git 源安装：
@@ -232,7 +232,28 @@ profile 的 `patchReload: live` 时 HMR 自动重载；`startup` 时重启 DSH �
 
 > 配置 schema 由 `@deepseek-ai/schemastery` 解析，不是 zod：没有 `.optional()` / `.describe()`，可选字段就是不带 `.default()` 的字段。1.2.0 修掉了 1.1.0 及更早版本误用这两个方法导致真实宿主加载失败的问题。
 
-### 3.1 设置页可调（1.3.0）
+### 3.1 设置页可调（1.3.1）
+
+**1.3.0 的说明不完整**：Host 的 settings 服务确实把 `.volatile()` 字段投影出来，但 **DSH 自带的 Web 客户端不会自动渲染第三方插件的配置表单**——它只渲染客户端 companion 注册的页面（官方 plugins 都是 host + client 成对发布，参考 `dsh-client-ui-settings-shell`、`dsh-win-pwsh7`）。1.3.0 只有宿主半边，所以设置页一直为空。
+
+1.3.1 补上了 `client.js`（浏览器半边）：
+
+- `dsh.client`（platform web）+ `exports["./client"]`；
+- 注册 **Settings 对话框左侧导航页**：`Settings → Workflow Boost`（`settings.section` slot，order 15）；
+- 注册 **Plugins 页配置卡片**：`插件 → dsh-workflow-boost → 配置`（`plugins.row.config` slot）；
+- 控件写入通过 `ctx.configForms.get('workflow-boost')` + `form.mutate([{op:'set', path:[...], value}])`，走 Host settings 服务，自动带 revision 冲突保护；保存后 `loader/volatile-update` 让所有模块立即读到新值，不需要重启。
+
+设置页里可调：
+
+- 插件总开关；
+- 回复风格（default / concise / proactive / explanatory / learning / custom + 自定义规则）；
+- 自我呈现（off / DeepSeek V4.1 / Claude Opus 5.5 / Claude Fable 5.2 / Claude Sonnet 5.5 / GPT-6.1 Sol / Grok 4.7 / Kimi K3 / GLM-5.3 / MiniMax M3.1 / 自定义）；
+- 15 个模块各自的 enabled 开关；
+- 是否注入系统提示词、是否持久化到工作区。
+
+> 前提：DSH ≥ 0.2.2（本机 0.2.2-rc.3 验证）。旧版客户端如果没有 `settings.section` / `plugins.row.config` slot，客户端会安全跳过，只保留宿主功能。
+
+
 
 Host 的插件设置页表单是 **Config schema 派生**的：只有声明 `.volatile()` 的字段会被投影（`packages/settings/settings/src/schema.ts` 的 `volatileForm()`），普通字段只能通过 profile YAML 编辑。1.2.0 只把 `stylePack` 一个对象标成 volatile，所以设置页里只有那一块；1.3.0 把每个模块的**标量字段逐个**标成 volatile（与官方 `bash-local` / `web-deepseek-api` 的写法一致）。
 
