@@ -3,6 +3,15 @@
 All notable changes to **dsh-workflow-boost** are documented here.
 The format loosely follows Keep a Changelog; versions use SemVer.
 
+## [1.3.2] - 2026-11-17
+
+### Changed
+- Settings UI is fully localized (zh): every style, identity and module switch now has a Chinese name plus a one-line explanation of what the module does.
+- The **Concise** style is labelled as matching Claude Code's default response feel, with a note explaining that Claude Code adds no extra output style but its base prompt already requires concise, no-preamble answers; "Default" means no extra rules.
+- **Self-presentation now overrides the prompt layer.** `stylePack` listens to the `system-prompt/assemble` waterfall and, when an identity is selected, replaces the `harness:identity` / `deployment:persona-prefix` / `deployment:persona-suffix` sections with one identity section plus a presentation-only caveat. Selecting "off" leaves the host prompt untouched. The static style section now carries style rules only.
+- The settings page explains the remaining limits: prompt text can be replaced, but the API model name and the model's own self-knowledge cannot.
+- Unit suite 285 -> 289 (assembly-override cases); checked sources 64 files; wiring harness 62.
+
 ## [1.3.1] - 2026-11-17
 
 ### Fixed

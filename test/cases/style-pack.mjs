@@ -297,3 +297,63 @@ test('config schema exposes stylePack fields as volatile for the settings form',
   const sections = text.match(/: formObject\(\{/g) ?? []
   assert(sections.length === 15, 'all 15 modules must expose live-editable fields, got ' + sections.length)
 })
+
+// ------------------------------------------------- host wiring: prompt identity
+
+function assemblyWithIdentity() {
+  return {
+    sections: [
+      { name: 'harness:identity', text: 'You are an AI agent powered by DeepSeek Harness.' },
+      { name: 'deployment:persona-prefix', text: 'You are a coding agent powered by the TestFlash model.' },
+      { name: 'tool:bash', text: 'Bash tool: run commands.' },
+    ],
+    variables: {},
+    contexts: [],
+  }
+}
+
+test('identity override replaces the harness identity and persona at assembly', async () => {
+  const fake = createFakeContext()
+  const disposer = install(fake.ctx, baseConfig({ identity: 'claude-opus-5.5', style: 'default' }), state())
+  const listener = (fake.listeners.get('system-prompt/assemble') ?? [])[0]
+  assert(typeof listener === 'function', 'system-prompt/assemble listener must be registered')
+  const out = await listener(assemblyWithIdentity(), { scope: {} }, async () => assemblyWithIdentity())
+  const names = out.sections.map((section) => section.name)
+  assert(!names.includes('harness:identity'), 'host identity must be shadowed')
+  assert(!names.includes('deployment:persona-prefix'), 'persona prefix must be shadowed')
+  assert(names.includes('tool:bash'), 'unrelated sections must survive')
+  assertEqual(out.sections[0].name, 'workflow-boost:identity')
+  assert(out.sections[0].text.includes('Claude Opus 5.5'))
+  assert(out.sections[0].text.includes('self-presentation only'), 'presentation caveat required')
+  disposer()
+})
+
+test('identity off leaves the assembled host prompt untouched', async () => {
+  const fake = createFakeContext()
+  const disposer = install(fake.ctx, baseConfig({ identity: 'off' }), state())
+  const listener = (fake.listeners.get('system-prompt/assemble') ?? [])[0]
+  const original = assemblyWithIdentity()
+  const out = await listener(original, { scope: {} }, async () => original)
+  assertEqual(out.sections.map((section) => section.name), original.sections.map((section) => section.name))
+  disposer()
+})
+
+test('applyToSystemPrompt:false suppresses the prompt-layer override', async () => {
+  const fake = createFakeContext()
+  const disposer = install(fake.ctx, baseConfig({ identity: 'claude-fable-5.2', applyToSystemPrompt: false }), state())
+  const listener = (fake.listeners.get('system-prompt/assemble') ?? [])[0]
+  const original = assemblyWithIdentity()
+  const out = await listener(original, { scope: {} }, async () => original)
+  assertEqual(out.sections.map((section) => section.name), original.sections.map((section) => section.name))
+  assertEqual(fake.sections.length, 0, 'no static section when injection is off')
+  disposer()
+})
+
+test('the static section carries style rules only; identity lives in the override', () => {
+  const fake = createFakeContext()
+  const disposer = install(fake.ctx, baseConfig({ style: 'concise', identity: 'claude-opus-5.5' }), state())
+  assertEqual(fake.sections.length, 1)
+  assert(fake.sections[0].text.includes('First sentence states the answer'))
+  assert(!fake.sections[0].text.includes('Claude Opus 5.5'), 'identity must not be duplicated in the static section')
+  disposer()
+})

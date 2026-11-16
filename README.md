@@ -5,7 +5,7 @@
 > 把 ZCode / Cline / OpenCode / Aider / Claude Code / OpenHands / SWE-agent 在**工作方式**上真正赢过 DeepSeek Harness 的机制，
 > 做成一个可安装、可开关、不破坏 DSH KV 缓存纪律的插件。
 
-版本：**1.3.1** · 适配 DSH 0.2.x（源码基线 0.2.2-rc.1）· 宿主插件 + 轻量 Web 客户端（设置页）
+版本：**1.3.2** · 适配 DSH 0.2.x（源码基线 0.2.2-rc.1）· 宿主插件 + 轻量 Web 客户端（设置页）
 
 ---
 
@@ -48,7 +48,7 @@
 插件已发布到 GitHub（`SlumberMin/dsh-workflow-boost`），Release 上带可直装的 tgz：
 
 ```powershell
-dsh plugin --profile <profile> add https://github.com/SlumberMin/dsh-workflow-boost/releases/download/v1.3.1/dsh-workflow-boost-1.3.1.tgz
+dsh plugin --profile <profile> add https://github.com/SlumberMin/dsh-workflow-boost/releases/download/v1.3.2/dsh-workflow-boost-1.3.2.tgz
 ```
 
 也可以直接从 Git 源安装：
@@ -232,7 +232,17 @@ profile 的 `patchReload: live` 时 HMR 自动重载；`startup` 时重启 DSH �
 
 > 配置 schema 由 `@deepseek-ai/schemastery` 解析，不是 zod：没有 `.optional()` / `.describe()`，可选字段就是不带 `.default()` 的字段。1.2.0 修掉了 1.1.0 及更早版本误用这两个方法导致真实宿主加载失败的问题。
 
-### 3.1 设置页可调（1.3.1）
+### 3.1 设置页可调（1.3.2）
+
+设置页已经中文化，并补充了每个模块的用途说明：
+
+- **回复风格**下拉里，“简洁（对齐 Claude Code 默认，推荐）”是 Claude Code 默认体感的对应项：Claude Code 本身没有额外 output style，它的基础提示词就要求“第一句给答案、不要前奏/复述、简单问题 1-3 句”；“不追加规则（DSH 原样）”则完全不动宿主提示词。
+- **模块开关**每个后面都有一行中文说明（例：上下文微压缩 = 上下文快满时清掉最旧工具结果省 token）。
+- **自我呈现**不再只是往系统提示词末尾追加一句，而是在 @BT@system-prompt/assemble@BT@ waterfall 里**替换** DSH 的 @BT@harness:identity@BT@、@BT@deployment:persona-prefix@BT@、@BT@deployment:persona-suffix@BT@ 三段，再插入选定的身份行（带“仅自我描述、不带来能力”的约束）。选“关闭”则完全保留 DSH 原样。
+  - 注意：被替换的只是**提示词文本**；API 请求里的实际模型名无法隐藏，模型自身训练出的自我认知也无法靠提示词改变。
+  - 切换身份会让系统提示词重建一次（一次缓存失效），之后同一身份下保持稳定。
+
+
 
 **1.3.0 的说明不完整**：Host 的 settings 服务确实把 `.volatile()` 字段投影出来，但 **DSH 自带的 Web 客户端不会自动渲染第三方插件的配置表单**——它只渲染客户端 companion 注册的页面（官方 plugins 都是 host + client 成对发布，参考 `dsh-client-ui-settings-shell`、`dsh-win-pwsh7`）。1.3.0 只有宿主半边，所以设置页一直为空。
 
