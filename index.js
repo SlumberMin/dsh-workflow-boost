@@ -1,5 +1,5 @@
 /**
- * dsh-workflow-boost 1.2.0 — one plugin that fuses the workflow mechanics other
+ * dsh-workflow-boost 1.3.0 — one plugin that fuses the workflow mechanics other
  * coding agents do better into DeepSeek Harness, without breaking its KV-cache
  * discipline.
  *
@@ -38,6 +38,8 @@ import { install as installHandoffNotes } from './lib/handoff-notes.js'
 import { install as installSkillPack } from './lib/skill-pack.js'
 import { install as installReviewGate } from './lib/review-gate.js'
 import { install as installStylePack } from './lib/style-pack.js'
+import { createLiveConfig, refreshLiveConfig } from './lib/live-config.js'
+import { createModuleLifecycle } from './lib/module-lifecycle.js'
 
 export const name = 'dsh-workflow-boost'
 export { Config }
@@ -72,6 +74,11 @@ export const VERSION = PLUGIN_VERSION
  * @param config - validated row configuration.
  */
 export function apply(ctx, config) {
+  // One plain, mutable snapshot shared by all modules. Volatile field
+  // references in `config` are dereferenced here and refreshed in place on
+  // loader/volatile-update, so settings-page edits reach every module without
+  // touching their read sites.
+  const live = createLiveConfig(config)
   const state = {
     ctx,
     startedAt: Date.now(),
@@ -95,40 +102,39 @@ export function apply(ctx, config) {
     state.log('warn', 'session-state unavailable: ' + describe(error))
   }
 
-  const enabled = []
-  for (const [id, install] of MODULES) {
-    const section = config?.[id]
-    if (config?.enabled === false || section?.enabled === false) {
-      state.log('info', 'module ' + id + ' disabled by config')
-      continue
-    }
-    try {
-      ctx.effect(() => {
-        let disposer
+  // Register the refresh listener BEFORE installing modules. stylePack also
+  // listens to loader/volatile-update and reads the shared snapshot inside its
+  // handler; Cordis dispatches emit listeners in registration order, so the
+  // snapshot must be refreshed first or that handler would see stale values.
+  let lifecycle
+  try {
+    if (typeof ctx?.on === 'function') {
+      ctx.on('loader/volatile-update', () => {
         try {
-          disposer = install(ctx, config ?? {}, state)
+          refreshLiveConfig(live, config)
+          lifecycle?.reconcile()
         } catch (error) {
-          state.log('warn', 'module ' + id + ' failed to install: ' + describe(error))
-          return
+          state.log('warn', 'live config refresh failed: ' + describe(error))
         }
-        return () => {
-          try {
-            disposer?.()
-          } catch (error) {
-            state.log('warn', 'module ' + id + ' cleanup failed: ' + describe(error))
-          }
-        }
-      }, 'dsh-workflow-boost: ' + id)
-      enabled.push(id)
-    } catch (error) {
-      state.log('warn', 'module ' + id + ' could not be mounted: ' + describe(error))
+      })
     }
+  } catch (error) {
+    state.log('warn', 'could not listen for volatile config updates: ' + describe(error))
   }
 
-  ctx.effect(() => () => {
-    try { state.sessionState?.dispose?.() } catch { /* ignore */ }
-  }, 'dsh-workflow-boost: session-state')
+  const installers = new Map(MODULES)
+  lifecycle = createModuleLifecycle(MODULES.map(([id]) => id), {
+    install: (id) => installers.get(id)?.(ctx, live, state),
+    wanted: (id) => live.enabled !== false && live[id]?.enabled !== false,
+    log: (level, message) => state.log(level, message),
+  })
 
+  ctx.effect(() => () => {
+    lifecycle.disposeAll()
+    try { state.sessionState?.dispose?.() } catch { /* ignore */ }
+  }, 'dsh-workflow-boost: modules')
+
+  const enabled = lifecycle.enabled
   const info = enabled.length > 0 ? 'ready v' + VERSION + ' modules=' + enabled.join(',') : 'ready with no active module'
   state.log('info', info)
 }

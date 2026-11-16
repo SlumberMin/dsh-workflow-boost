@@ -15,6 +15,7 @@ import './cases/handoff-notes.mjs'
 import './cases/skill-pack.mjs'
 import './cases/review-gate.mjs'
 import './cases/style-pack.mjs'
+import './cases/live-config.mjs'
 import { run, summary } from './harness.mjs'
 await run()
 process.exitCode = summary()

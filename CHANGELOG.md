@@ -3,6 +3,22 @@
 All notable changes to **dsh-workflow-boost** are documented here.
 The format loosely follows Keep a Changelog; versions use SemVer.
 
+## [1.3.0] - 2026-11-16
+
+### Added
+- **Every module is now editable from the plugin settings page.** The host projects only `.volatile()` fields into its schema-derived form (`packages/settings/settings/src/schema.ts` :: `volatileForm`). 1.2.0 declared a single object-level volatile section (`stylePack`), leaving the other 14 modules invisible. Now every direct scalar field of all 15 sections plus the master `enabled` switch is marked field-level volatile — the same pattern used by the official `bash-local` and `web-deepseek-api` plugins. The form exposes 16 top-level entries / 100 editable fields.
+- `lib/live-config.js`: dereferences the resulting stable `.get()` references into one plain snapshot shared by all modules, and refreshes it IN PLACE on `loader/volatile-update` (nested section objects keep their identity, so modules that cached `config.<section>` still see live values). No module read site changed.
+- `lib/module-lifecycle.js`: reconciles the mounted module set when a settings-page edit flips an `enabled` switch; parameter-only edits never remount. Reconciliation is idempotent.
+- `test/cases/live-config.mjs`: 7 cases for snapshot, in-place refresh, plain-config fallback, lifecycle reconciliation and listener ordering.
+
+### Fixed
+- The `loader/volatile-update` refresh listener is now registered BEFORE any module is installed. `stylePack` listens to the same emit event and reads the shared snapshot in its handler; Cordis dispatches in registration order, so registering the refresh afterwards made it re-register its prompt section with stale values.
+- `test/verify-config.mjs` is now a real settings-form gate: it mirrors the host's `volatileForm()` projection under the real schemastery package, asserts all 15 sections / >= 80 editable fields, confirms field-level `.get()` references, and checks that `live-config.js` flattens and refreshes them. Verified on 3.19.0 and 3.18.2.
+
+### Changed
+- Four array-of-object fields stay ordinary config and are still edited from the profile YAML: `duplicateGuard.whitelist`, `editCheck.checks`, `goalGate.verifyCommands`, `hookBus.hooks`. The generated form cannot reliably add/remove nested rows.
+- Unit suite 273 -> 280 assertions; checked sources 59 -> 62 files; wiring harness unchanged at 62; package 70 -> 73 files.
+
 ## [1.2.0] - 2026-11-12
 
 ### Added

@@ -285,13 +285,15 @@ test('disabled module registers nothing; broken host fails open', async () => {
   disposer()
 })
 
-test('config schema marks stylePack volatile so it appears in the settings page', () => {
+test('config schema exposes stylePack fields as volatile for the settings form', () => {
   const path = fileURLToPath(new URL('../../lib/config.js', import.meta.url))
   const text = readFileSync(path, 'utf8')
-  const start = text.indexOf('stylePack: volatile(z.object({')
-  assert(start >= 0, 'stylePack must be wrapped in volatile(...) for the settings form')
+  const start = text.indexOf('stylePack: formObject({')
+  assert(start >= 0, 'stylePack must use formObject() so its fields are volatile')
   assert(text.includes('typeof schema.volatile'), 'volatile() must be guarded for schemastery < 3.19')
-  const section = text.slice(start, text.indexOf('cacheReport: z.object({'))
+  const section = text.slice(start, text.indexOf('cacheReport: formObject({'))
   assert(section.includes('customStyle') && section.includes('customIdentity'), 'custom fields must be editable too')
   assert(section.includes("z.const('claude-fable-5.2')"), 'identity preset must be selectable in the form')
+  const sections = text.match(/: formObject\(\{/g) ?? []
+  assert(sections.length === 15, 'all 15 modules must expose live-editable fields, got ' + sections.length)
 })

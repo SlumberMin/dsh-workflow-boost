@@ -5,7 +5,7 @@
 > 把 ZCode / Cline / OpenCode / Aider / Claude Code / OpenHands / SWE-agent 在**工作方式**上真正赢过 DeepSeek Harness 的机制，
 > 做成一个可安装、可开关、不破坏 DSH KV 缓存纪律的插件。
 
-版本：**1.2.0** · 适配 DSH 0.2.x（源码基线 0.2.2-rc.1）· 纯宿主插件（无客户端代码）
+版本：**1.3.0** · 适配 DSH 0.2.x（源码基线 0.2.2-rc.1）· 纯宿主插件（无客户端代码）
 
 ---
 
@@ -16,6 +16,8 @@
 1.1.0 补齐**工作流外环**：记忆治理、可配置 hook 总线、压缩前后结构化交接、内置技能、完成前确定性复核。
 
 1.2.0 补齐**表达层**：可切换的回答风格与自我呈现，静态提示词段 + 斜杠命令 + 设置页即时编辑；同时修掉两个只在真实宿主上才会暴露的接缝错误。
+
+1.3.0 补齐**设置页**：15 个模块共 100 个字段可在 DSH 插件设置页即时调整，改完不用重启；此前只有 `stylePack` 一个段可见。
 
 | 模块 | 借鉴来源 | 对手的机制 | 本插件的实现 | 对前缀缓存的影响 |
 |---|---|---|---|---|
@@ -46,7 +48,7 @@
 插件已发布到 GitHub（`SlumberMin/dsh-workflow-boost`），Release 上带可直装的 tgz：
 
 ```powershell
-dsh plugin --profile <profile> add https://github.com/SlumberMin/dsh-workflow-boost/releases/download/v1.2.0/dsh-workflow-boost-1.2.0.tgz
+dsh plugin --profile <profile> add https://github.com/SlumberMin/dsh-workflow-boost/releases/download/v1.3.0/dsh-workflow-boost-1.3.0.tgz
 ```
 
 也可以直接从 Git 源安装：
@@ -226,9 +228,20 @@ profile 的 `patchReload: live` 时 HMR 自动重载；`startup` 时重启 DSH �
           warnOnIdentity: true
 ```
 
-每个 section 都可单独 `enabled: false`；插件总开关 `config.enabled: false`。`stylePack` 段是 volatile，可在插件设置页即时修改（见 §4）。
+每个 section 都可单独 `enabled: false`；插件总开关 `config.enabled: false`。除 4 个数组字段外，这些标量字段都可在 DSH 插件设置页即时调整，见 §3.1。
 
 > 配置 schema 由 `@deepseek-ai/schemastery` 解析，不是 zod：没有 `.optional()` / `.describe()`，可选字段就是不带 `.default()` 的字段。1.2.0 修掉了 1.1.0 及更早版本误用这两个方法导致真实宿主加载失败的问题。
+
+### 3.1 设置页可调（1.3.0）
+
+Host 的插件设置页表单是 **Config schema 派生**的：只有声明 `.volatile()` 的字段会被投影（`packages/settings/settings/src/schema.ts` 的 `volatileForm()`），普通字段只能通过 profile YAML 编辑。1.2.0 只把 `stylePack` 一个对象标成 volatile，所以设置页里只有那一块；1.3.0 把每个模块的**标量字段逐个**标成 volatile（与官方 `bash-local` / `web-deepseek-api` 的写法一致）。
+
+- 现在设置页可编辑：主开关 `enabled` + 15 个模块的开关、阈值、模式、字符串等共 **100 个字段**（16 个顶层表单条目）。
+- 保存后 Host 把新值提交到运行中的 volatile 引用并发出 `loader/volatile-update`。`lib/live-config.js` 把 `.get()` 引用解包成一份普通快照，并在该事件上**原地刷新**（嵌套 section 对象保持同一引用），所以 15 个模块无需改动就能读到实时值，**参数改动立即生效、不重启、不重挂**。入口的刷新 listener 注册在所有模块之前，保证 `stylePack` 在同一事件里读到的也是新值。
+- 改 `enabled` 开关会由 `lib/module-lifecycle.js` 热挂载/卸载对应模块；其它参数改动不会重挂，也不会重建会话状态。
+- 4 个数组型字段保持普通配置，仍从 profile 的 YAML 编辑：`duplicateGuard.whitelist`、`editCheck.checks`、`goalGate.verifyCommands`、`hookBus.hooks`。自动表单无法可靠增删嵌套行，强行投影反而会破坏配置。
+- 需要宿主 `@deepseek-ai/schemastery >= 3.19`（DSH 0.2.2-rc.1 依赖 `~3.19.0`）。更低版本没有 `.volatile()`，插件照常加载，但设置页不提供实时编辑，改配置后走 Loader 正常重载。
+- 门禁：`node test/verify-config.mjs` 用真实 schemastery 复刻 `volatileForm()` 投影并断言字段覆盖。
 
 ---
 
@@ -313,7 +326,7 @@ profile 的 `patchReload: live` 时 HMR 自动重载；`startup` 时重启 DSH �
   | `/boost-reset` | 恢复配置默认值 |
 
   切换后由 `tools/post-execute` 在下一次工具调用尾部注入一条 `[style switch] ...` notice；此前的历史与缓存前缀保持不变。
-- **设置页即时编辑**：`stylePack` 配置段声明为 volatile（schemastery ≥ 3.19，DSH 0.2.2-rc.1 依赖 `~3.19.0`），表单可改 `enabled / style / identity / customStyle / customIdentity / applyToSystemPrompt / persist / identityScope / warnOnIdentity`。插件监听 `loader/volatile-update`，重新读 `.get()` 并刷新静态段，不需要重启。低版本 schemastery 降级为普通配置段（插件照常加载，设置页不提供实时编辑）。
+- **设置页即时编辑**：9 个字段都是字段级 volatile（见 §3.1），表单可改 `enabled / style / identity / customStyle / customIdentity / applyToSystemPrompt / persist / identityScope / warnOnIdentity`。插件监听 `loader/volatile-update` 重注册静态段；入口的刷新 listener 先于模块注册，保证读到的是新值。
 - **持久化**：`persist: true` 时把选择写到 `<workspace>/.dsh/workflow-boost/style.json`，下个会话首次 step 前恢复；写失败只 log，不影响本次会话。
 - **只读工具** `boost_settings`：报告当前风格/身份与可用预设。
 
@@ -371,10 +384,12 @@ profile 的 `patchReload: live` 时 HMR 自动重载；`startup` 时重启 DSH �
 在包根目录执行（不依赖 `@deepseek-ai/*` 已安装，干净 Node 即可）：
 
 ```bash
-node test/check.mjs                                # node --check 全部源码（59 文件）
-node test/unit.mjs                                 # 273 项单测（含 stylePack 22 项）
+node test/check.mjs                                # node --check 全部源码（62 文件）
+node test/unit.mjs                                 # 280 项单测（stylePack 22 + liveConfig 7）
 node test/verify-harness.mjs                       # 62 项接线断言（fake 宿主，15 个模块）
+node test/verify-config.mjs                        # 真实宿主：表单投影 / 字段级引用 / 原地刷新
 node test/run-case.mjs test/cases/style-pack.mjs   # 单独跑 stylePack（22/22）
+node test/run-case.mjs test/cases/live-config.mjs  # 单独跑 liveConfig（7/7）
 ```
 
 真实宿主兼容性自检（可选；需要本机装有 DSH 的 schemastery，或用 `DSH_SCHEMASTERY` 指向包根）：
@@ -385,7 +400,7 @@ node test/verify-config.mjs   # 用真实 schemastery 构造 Config、校验 vol
 
 未安装宿主 schemastery 时会输出 `SKIP` 并以 0 退出，不影响正常安装。
 
-为什么需要第二条：干净环境单测用 fake `z`，1.1.0 正因为 `lib/config.js` 写了 zod 才有的 `.optional()` / `.describe()` 而在真实宿主上构造 `Config` 直接抛异常，测试全绿却装不上。1.2.0 已修，并在本机对 schemastery **3.19.0**（`meta.volatile=true`、`.get()` 解包、表单投影 9 字段）与 **3.18.2**（守卫降级、Config 正常加载）分别实测 PASS。
+为什么需要第二条：干净环境单测用 fake `z`，1.1.0 正因为 `lib/config.js` 写了 zod 才有的 `.optional()` / `.describe()` 而在真实宿主上构造 `Config` 直接抛异常，测试全绿却装不上。1.2.0 已修；1.3.0 把它扩展成表单投影门禁：本机对 schemastery **3.19.0**（16 个顶层条目 / 100 个可编辑字段、字段级 `.get()` 引用、live-config 原地刷新）与 **3.18.2**（守卫降级、Config 正常加载）分别实测 PASS。
 
 说明：本轮仍在 DSH 0.2.2-rc.1 的源码/类型层面验证（app.asar 提取 + 接缝审计），没有可用隔离 profile 做真实会话实测；`dsh.verifiedAgainst` 记录的是源码基线版本。安装后建议先跑 `node test/verify-harness.mjs`，再在会话里检查 `repo_map` / `cache_report` / `goal_verify` 三个工具，以及 `/boost-show`。
 
@@ -408,13 +423,22 @@ node test/verify-config.mjs   # 用真实 schemastery 构造 Config、校验 vol
 - reviewGate：确定性检查只覆盖常见风险模式，不能替代完整代码审查；依赖 git。
 - handoffNotes：笔记写入插件自有 `.dsh` 目录；注入为一次性 notice，压缩后仅恢复要点而非完整历史。
 - **stylePack**：身份行只是自我呈现，不改变模型/工具；默认全关，不得用于对终端用户误导产品身份。
-- **stylePack**：设置页实时编辑需要宿主 schemastery ≥ 3.19（DSH 0.2.2-rc.1 满足）；更低版本只能改配置后重启。中途切换要等下一次工具调用才对模型可见，命令本身不产生模型消息。
+- **设置页**：实时编辑需要宿主 schemastery ≥ 3.19（DSH 0.2.2-rc.1 满足）；更低版本只能改配置后重启。4 个数组字段不进表单（见 §3.1）。
+- **stylePack**：中途切换要等下一次工具调用才对模型可见，命令本身不产生模型消息。
 - **stylePack**：持久化文件在工作区 `.dsh/workflow-boost/style.json`；只读工作区下切换仍可用但不跨会话。
 - 未在本机真实 DSH 会话实测（无隔离 profile）；所有宿主接缝按 0.2.2-rc.1 源码实现，升级前先看 CHANGELOG。
 
 ---
 
-## 9. 版本变更（1.2.0）
+## 9. 版本变更（1.3.0）
+
+- **全插件设置页可调**：15 个模块的标量字段 + 主开关共 100 个字段改为字段级 `.volatile()`，宿主 `volatileForm()` 会把它们投影成设置页表单（此前只有 `stylePack` 一个段可见）。
+- 新增 `lib/live-config.js`：把 volatile 的 `.get()` 引用递归解包成普通快照，并在 `loader/volatile-update` 上原地刷新；15 个模块零改动即可读到实时值。
+- 新增 `lib/module-lifecycle.js`：设置页改 `enabled` 开关时热挂载/卸载模块；刷新 listener 注册在所有模块之前，避免 `stylePack` 读到旧快照。
+- 4 个数组字段保持普通配置（`whitelist` / `checks` / `verifyCommands` / `hooks`）；`test/verify-config.mjs` 升级为真实宿主表单投影门禁。
+- 规模：单测 273 → 280，语法检查 59 → 62 文件，接线 62 项不变，包内 70 → 73 文件。
+
+## 9.1 版本变更（1.2.0）
 
 - 新增 `stylePack`：6 种风格 + 带发布日期的身份预设、静态提示词段、4 个 `/boost-*` 命令、`boost_settings` 只读工具、设置页 volatile 即时编辑与可选持久化。
 - 修复 **P0**：真实 schemastery 下 `Config` 构造即崩（`.optional()` / `.describe()` 是 zod API）。新增 `test/verify-config.mjs` 真实宿主门禁，避免 fake `z` 再次掩盖同类问题。
@@ -422,13 +446,13 @@ node test/verify-config.mjs   # 用真实 schemastery 构造 Config、校验 vol
 - 修正 `PLUGIN_VERSION`（1.1.0 误留 1.0.0）、README 拼接错误与 ARCHITECTURE 接缝描述。
 - 规模：单测 251 → 273，接线 58 → 62，语法检查 55 → 59 文件，模块 14 → 15。
 
-## 9.1 版本变更（1.1.0）
+## 9.2 版本变更（1.1.0）
 
 - 新增 5 个模块：`memoryLint`、`hookBus`（默认关）、`handoffNotes`、`skillPack`、`reviewGate`。
 - `goalGate` 增加 `requireReview`：可选要求完成前有新鲜 review 证据；review 的 blocker findings 同样拦截。
 - 验证规模：单测 159 → 251，接线断言 43 → 58；打包内容仍保证 tgz 与 zip 一致。
 
-## 9.2 版本变更（1.0.0）
+## 9.3 版本变更（1.0.0）
 
 - 修复 0.1.1 全部 8 项：阈值 0.72 / MIN_SAVINGS 256 / 最新 5 组 / 短占位文本 / goalGate 空命令 fail-fast / repoMap 越界与排序性能 / verify-harness 进入包内 / 单测干净环境可跑。
 - 新增 turnGuard、editCheck、checkpoint 三个模块；duplicateGuard 升级为 Stuck Detector；cacheReport 升级为 cacheAudit。

@@ -1,4 +1,4 @@
-# 安装 dsh-workflow-boost 1.2.0
+# 安装 dsh-workflow-boost 1.3.0
 
 本插件是纯宿主插件：没有客户端代码，只需放进 profile 并在 `cordis.patch.yml` 里 insert 一行。
 
@@ -56,9 +56,14 @@ node <DSH 安装目录>/resources/runtime/bin/node.cmd <DSH 安装目录>/resour
 node test/check.mjs
 node test/unit.mjs
 node test/verify-harness.mjs
+node test/verify-config.mjs   # 可选：真实宿主下校验设置页表单投影
 ```
 
-启动后插件日志会打印 `dsh-workflow-boost: ready v1.2.0 modules=...`；日志里出现 `module <id> disabled` 表示该模块被配置关闭或无法挂载。
+启动后插件日志会打印 `dsh-workflow-boost: ready v1.3.0 modules=...`；日志里出现 `module <id> disabled` 表示该模块被配置关闭或无法挂载。
+
+## 设置页
+
+DSH 0.2.2-rc.1 的插件设置页会为本插件生成配置表单（主开关 + 15 个模块的标量字段，共 100 个）。改完保存即时生效，不需要重启；切换模块 `enabled` 会热挂载/卸载该模块。需要宿主 `@deepseek-ai/schemastery >= 3.19`。4 个数组字段（`duplicateGuard.whitelist`、`editCheck.checks`、`goalGate.verifyCommands`、`hookBus.hooks`）仍需从 profile 的 YAML 编辑，详见 README §3.1。
 
 ## 回滚
 

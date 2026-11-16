@@ -1,19 +1,20 @@
-# dsh-workflow-boost 1.2.0 实现契约（所有实现者必读）
+# dsh-workflow-boost 1.3.0 实现契约（所有实现者必读）
 
 本文件是并行实现的接口契约。只改你名下文件；接口/配置/测试脚手架由 Lead 维护，需要变更先发消息。
 
 ## 0. 目标与来源
 
 - 规格：工作区根目录 `dsh-workflow-boost-0.2.0-优化提示词.md`（0.1.1 修复 + P0/P1 规格）。
-- 本版本号 1.2.0；宿主 DSH 0.2.2-rc.1（源码级验证，本机没有隔离 profile 跑真实会话）。
+- 本版本号 1.3.0；宿主 DSH 0.2.2-rc.1（源码级验证，本机没有隔离 profile 跑真实会话）。
 - 设计红线：静态系统提示词段、历史尾部追加、最旧处替换、阈值触发、fail-open、不重复原生能力。
 - 1.2.0 附加红线：身份预设只收录 2026-06 之后发布的模型；身份行是自我呈现，不得用于向终端用户误导产品身份。
+- 1.3.0 附加红线：设置页表单只投影 `.volatile()` 字段，必须**字段级**声明（对齐官方 `bash-local`）；模块只准读 `lib/live-config.js` 给出的普通快照，不得直接读 `.get()` 引用；`loader/volatile-update` 的刷新 listener 必须早于任何模块注册；数组型配置不得投影进表单。
 
 ## 1. 文件归属（只改你名下文件）
 
 | 归属 | 文件 |
 |---|---|
-| Lead | `index.js`、`lib/config.js`、`lib/defaults.js`、`lib/shared.js`、`lib/session-state.js`、`test/harness.mjs`、`test/unit.mjs`、`test/run-case.mjs`、`test/check.mjs`、`test/verify-harness.mjs`、README/INSTALL、打包、`test/verify-config.mjs` |
+| Lead | `index.js`、`lib/config.js`、`lib/defaults.js`、`lib/shared.js`、`lib/session-state.js`、`test/harness.mjs`、`test/unit.mjs`、`test/run-case.mjs`、`test/check.mjs`、`test/verify-harness.mjs`、README/INSTALL、打包、`test/verify-config.mjs`、`lib/live-config.js`、`lib/module-lifecycle.js`、`test/cases/live-config.mjs` |
 | impl-microcompact | `lib/microcompact.js`、`lib/focus-chain.js`、`lib/pure/microcompact-plan.js`、`lib/pure/focus-render.js`、`test/cases/microcompact.mjs`、`test/cases/focus-chain.mjs` |
 | impl-loop | `lib/turn-guard.js`、`lib/duplicate-guard.js`、`lib/pure/turn-guard-core.js`、`lib/pure/stuck-core.js`、`test/cases/turn-guard.mjs`、`test/cases/duplicate-guard.mjs` |
 | impl-quality | `lib/edit-check.js`、`lib/checkpoint.js`、`lib/pure/edit-check-core.js`、`lib/pure/checkpoint-core.js`、`test/cases/edit-check.mjs`、`test/cases/checkpoint.mjs` |
@@ -57,13 +58,13 @@ export function install(ctx, config, state) {
 - `tools/pre-execute`（waterfall，exec 含 name/arguments/agent）：签名 `(exec, next)`；返回 `{ kind: 'deny', reason }` 或 `{ kind: 'ask', reason }` 或 `next()`；不能改写参数。
 - `tools/post-execute`（waterfall）：签名是**三个参数** `(exec, result, next)`，返回 `PostToolDecision` = `{ kind: 'accept', additionalContexts?: UserMessage[] }` 或 `{ kind: 'block', feedback }`。依据 `packages/core/tools/src/events.ts:41`。写成两参会让 `next` 收到 result 对象，`await next()` 直接抛错并打断每次工具调用。
 - `tools/result`（emit，只观察）、`session/event`（emit，(session, event)）、`agent/request-error`（waterfall）、`fs/write-intent|fs/edit-intent|fs/delete-intent`（waterfall，是否生效未实测，必须 capability 探测 + fail-open）、`goal/changed`（emit）。
-- `loader/volatile-update`（emit，paths）： volatile 配置写入运行中的 fiber 后通知；消费者应重新读 `.get()` 并刷新注册事实。依据 `vendor/loader/src/index.ts:34` 与 `docs/cookbook/adding-a-settings-card.zh.md`。
+- `loader/volatile-update`（emit，paths）： volatile 配置写入运行中的 fiber 后通知；消费者应重新读 `.get()` 并刷新注册事实。依据 `vendor/loader/src/index.ts:34` 与 `docs/cookbook/adding-a-settings-card.zh.md`。插件入口在此事件上先 `refreshLiveConfig(live, config)` 再 `lifecycle.reconcile()`，且该 listener 必须在所有模块 install 之前注册。
 
 命令（`ctx.commands.register({ name, description, input: { hint }, handler })`）：`handler({ agent, rawInput })` 返回 `{ kind: 'success' | 'error', text }`；命令不产生模型消息，需模型可见时用尾部 `additionalContexts` notice。
 
 服务（`ctx.get(name)`，全部可能缺失）：`tools`、`systemPrompt`、`tokenMeter`、`sessionProjections`、`workingDirectory`、`goals`、`subagents`、`skills`、`commands`、`compaction`、`fs`。`workingDirectory.get(session)` 取工作区绝对路径，禁止 `process.cwd()` 兜底。
 
-配置 schema：`@deepseek-ai/schemastery` **不是 zod**。可用方法包括 `.default()`、`.description()`、`.min()/.max()`、`.required()`、`.volatile()`（>= 3.19）；**没有** `.optional()`、`.describe()`。无 `.default()` 的字段本身就是可选。`.volatile()` 让设置页渲染该子树并给出稳定引用（读值用 `.get()`），低版本宿主需降级守卫。
+配置 schema：`@deepseek-ai/schemastery` **不是 zod**。可用方法包括 `.default()`、`.description()`、`.min()/.max()`、`.required()`、`.volatile()`（>= 3.19）；**没有** `.optional()`、`.describe()`。无 `.default()` 的字段本身就是可选。`.volatile()` 让设置页投影该字段并给出稳定引用（读值用 `.get()`），低版本宿主需降级守卫。设置页是 schema 派生的「即时字段」表单（`packages/settings/settings/src/schema.ts` 的 `volatileForm`），普通字段只能通过 profile YAML 编辑；官方插件用字段级 `.volatile()`，`lib/config.js` 的 `formObject()` 批量完成这件事，4 个数组字段用 skip 排除。
 
 禁止：`session.eventAt()/snapshotEvents()/ownEvents()`（官方 deprecated）；每步改系统提示词或工具集。
 
@@ -74,7 +75,7 @@ export function install(ctx, config, state) {
 - 全量：`node test/unit.mjs`
 - 语法：`node test/check.mjs`
 - 测试不得依赖 `@deepseek-ai/*`。
-- **真实宿主兼容性**：干净环境单测用 fake `z`，无法发现 schema API 错误。发布前在包根目录跑 `node test/verify-config.mjs`（需本机装有宿主 schemastery，或设 `DSH_SCHEMASTERY`），它会用真实包加载 `lib/config.js` 并校验 volatile 表单投影。
+- **真实宿主兼容性**：干净环境单测用 fake `z`，无法发现 schema API 错误。发布前在包根目录跑 `node test/verify-config.mjs`（需本机装有宿主 schemastery，或设 `DSH_SCHEMASTERY`），它会用真实包加载 `lib/config.js`、复刻 `volatileForm()` 投影并校验字段覆盖、`lib/live-config.js` 的解包与原地刷新。
 
 ## 6. 完成标准
 
